@@ -596,7 +596,7 @@ public class StudentForm extends JFrame {
         JButton submitBtn = new JButton("Submit Appointment Request");
         submitBtn.setFont(new Font(Font.SERIF, Font.BOLD, 13));
         submitBtn.setBackground(COLOR_PRIMARY);
-        submitBtn.setForeground(Color.WHITE);
+        submitBtn.setForeground(Color.black);
         submitBtn.setFocusPainted(false);
         submitBtn.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
         submitBtn.setPreferredSize(new Dimension(0, 36));
