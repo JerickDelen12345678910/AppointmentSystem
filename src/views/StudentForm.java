@@ -65,7 +65,7 @@ public class StudentForm extends JFrame {
     // Section I controls
     private final JTextField idField = createLinedField();
     private final JTextField nameField = createLinedField();
-    private final JComboBox<String> courseBox = createStyledComboBox(new String[]{"BSIS", "BSIT", "BSEd"});
+    private final JComboBox<String> courseBox = createStyledComboBox(new String[]{"Bachelor of Science in Hospitality Management", "Bachelor of Science in Tourism Management", "Bachelor of Library and Information Science", "Bachelor of Science in Information Systems", "Bachelor of Secondary Education, Major in Science","Bachelor of Secondary Education, Major in Mathematics","Bachelor of Special Needs Education","Bachelor of Public Administration"});
     private final JComboBox<String> yearBox = createStyledComboBox(YEARS);
 
     // Section II controls
@@ -207,16 +207,21 @@ public class StudentForm extends JFrame {
         addFormRow(grid, 0, "Student ID No.", idField);
         addFormRow(grid, 1, "Full Name", nameField);
 
-        JPanel courseYearGroup = new JPanel(new GridLayout(1, 2, 16, 0));
-        courseYearGroup.setOpaque(false);
-        courseYearGroup.add(createLabeledGroup("Course", courseBox));
-        courseYearGroup.add(createLabeledGroup("Year Level", yearBox));
+        // Course names are long, so Course gets the full width of the sheet (Year Level sits
+        // underneath it) instead of half a row.
+        styleCourseBox();
 
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         gbc.insets = new Insets(8, 0, 2, 0);
-        grid.add(courseYearGroup, gbc);
+        grid.add(createLabeledGroup("Course", courseBox), gbc);
+
+        gbc = new GridBagConstraints();
+        gbc.gridx = 0; gbc.gridy = 3; gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(8, 0, 2, 0);
+        grid.add(createLabeledGroup("Year Level", yearBox), gbc);
 
         section.add(grid);
         return section;
@@ -441,6 +446,51 @@ public class StudentForm extends JFrame {
         box.setBackground(Color.WHITE);
         box.setPreferredSize(new Dimension(0, 32));
         return box;
+    }
+
+    /**
+     * Course dropdown: each course wraps onto as many lines as it needs inside the list, so
+     * nothing is cut off and similar names (e.g. the two Secondary Education majors) can be
+     * told apart. The closed box shows the selection on one line, with the full name as a tooltip.
+     */
+    private void styleCourseBox() {
+        courseBox.setRenderer(new WrappingComboRenderer(courseBox));
+        courseBox.setMaximumRowCount(courseBox.getItemCount());
+        courseBox.setToolTipText(String.valueOf(courseBox.getSelectedItem()));
+        courseBox.addActionListener(e -> courseBox.setToolTipText(String.valueOf(courseBox.getSelectedItem())));
+    }
+
+    private static class WrappingComboRenderer extends DefaultListCellRenderer {
+        private static final Color ROW_SELECT = new Color(240, 232, 218);
+        private static final Color ROW_LINE   = new Color(232, 226, 216);
+
+        private final JComboBox<?> combo;
+
+        WrappingComboRenderer(JComboBox<?> combo) {
+            this.combo = combo;
+        }
+
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, int index,
+                                                      boolean selected, boolean hasFocus) {
+            super.getListCellRendererComponent(list, value, index, selected, hasFocus);
+            String text = value == null ? "" : value.toString();
+
+            if (index < 0) {            // the closed box: single line, ellipsis if too long
+                setText(text);
+                return this;
+            }
+
+            int textWidth = Math.max(120, combo.getWidth() - 40);
+            String safe = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;");
+            setText("<html><body style='width: " + textWidth + "px'>" + safe + "</body></html>");
+            setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createMatteBorder(0, 0, 1, 0, ROW_LINE),
+                    new EmptyBorder(5, 8, 5, 8)));
+            setBackground(selected ? ROW_SELECT : Color.WHITE);
+            setForeground(COLOR_INK);
+            return this;
+        }
     }
 
     private JButton createOutlineButton(String text, Color color) {

@@ -501,10 +501,10 @@ public class AdminDashboard extends JFrame {
     // ----------------------------------------------------------- Dashboard (summary + table)
     private JComponent buildDashboard() {
         // ---- Summary cards
-        statBooked  = new StatCard("Booked Today", GlyphKind.CALENDAR, COLOR_PRIMARY, COLOR_ROW_TINT);
-        statPending = new StatCard("Pending Print", GlyphKind.CLOCK, AMBER, AMBER_TINT);
-        statPrinted = new StatCard("Printed", GlyphKind.PRINTER, COLOR_OK, GREEN_TINT);
-        statDocs    = new StatCard("Documents", GlyphKind.DOCUMENT, BROWN, BROWN_TINT);
+        statBooked  = new StatCard("Booked Today");
+        statPending = new StatCard("Pending Print");
+        statPrinted = new StatCard("Printed");
+        statDocs    = new StatCard("Documents");
 
         JPanel stats = new JPanel(new GridLayout(1, 4, 16, 0));
         stats.setOpaque(false);
@@ -629,9 +629,6 @@ public class AdminDashboard extends JFrame {
     }
 
     private JComponent buildEmptyState() {
-        GlyphBadge badge = new GlyphBadge(GlyphKind.CALENDAR, 76, COLOR_ROW_TINT, COLOR_PRIMARY);
-        badge.setAlignmentX(Component.CENTER_ALIGNMENT);
-
         emptyTitle.setFont(serif(Font.BOLD, 17));
         emptyTitle.setForeground(COLOR_INK);
         emptyTitle.setAlignmentX(Component.CENTER_ALIGNMENT);
@@ -642,8 +639,6 @@ public class AdminDashboard extends JFrame {
         JPanel inner = new JPanel();
         inner.setOpaque(false);
         inner.setLayout(new BoxLayout(inner, BoxLayout.Y_AXIS));
-        inner.add(badge);
-        inner.add(Box.createRigidArea(new Dimension(0, 16)));
         inner.add(emptyTitle);
         inner.add(Box.createRigidArea(new Dimension(0, 5)));
         inner.add(emptySub);
@@ -1256,7 +1251,7 @@ public class AdminDashboard extends JFrame {
         top.add(leftV(text), BorderLayout.CENTER);
 
         // Its own line, so it can never collide with the school name or the form title.
-        JLabel office = new JLabel("Office of the Registrar", SwingConstants.RIGHT);
+        JLabel office = new JLabel("Registrar of City College of Calapan", SwingConstants.RIGHT);
         office.setFont(serif(Font.ITALIC, 11));
         office.setForeground(COLOR_MUTED);
         office.setBorder(new EmptyBorder(6, 0, 0, 0));
@@ -1574,22 +1569,16 @@ public class AdminDashboard extends JFrame {
         }
     }
 
-    /** Summary card: label, big number, caption, icon chip and an optional progress bar. */
+    /** Summary card: label, big number, caption and an optional progress bar. */
     private static class StatCard extends JPanel {
         private String label;
         private String value = "0";
         private String sub = "";
-        private final GlyphKind glyph;
-        private final Color accent;
-        private final Color tint;
         private double progress = -1;
         private Color progressColor = COLOR_PRIMARY;
 
-        StatCard(String label, GlyphKind glyph, Color accent, Color tint) {
+        StatCard(String label) {
             this.label = label;
-            this.glyph = glyph;
-            this.accent = accent;
-            this.tint = tint;
             setOpaque(false);
         }
 
@@ -1620,13 +1609,6 @@ public class AdminDashboard extends JFrame {
             g2.fillRoundRect(0, 0, w - 1, h - 1, arc, arc);
             g2.setColor(CARD_BORDER);
             g2.drawRoundRect(0, 0, w - 1, h - 1, arc, arc);
-
-            // icon chip, top right
-            int chip = 40;
-            int cx = w - 18 - chip, cy = 16;
-            g2.setColor(tint);
-            g2.fillRoundRect(cx, cy, chip, chip, 14, 14);
-            paintGlyph(g2, glyph, cx + (chip - 20) / 2, cy + (chip - 20) / 2, 20, accent);
 
             g2.setFont(sans(Font.BOLD, 12));
             g2.setColor(COLOR_MUTED);
@@ -1832,34 +1814,6 @@ public class AdminDashboard extends JFrame {
             FontMetrics fm = g2.getFontMetrics();
             g2.drawString(initial, (getWidth() - fm.stringWidth(initial)) / 2,
                     (getHeight() - fm.getHeight()) / 2 + fm.getAscent());
-            g2.dispose();
-        }
-    }
-
-    /** Tinted circle holding a single icon (empty states). */
-    private static class GlyphBadge extends JComponent {
-        private final GlyphKind kind;
-        private final int diameter;
-        private final Color tint;
-        private final Color accent;
-
-        GlyphBadge(GlyphKind kind, int diameter, Color tint, Color accent) {
-            this.kind = kind;
-            this.diameter = diameter;
-            this.tint = tint;
-            this.accent = accent;
-            setPreferredSize(new Dimension(diameter, diameter));
-            setMaximumSize(new Dimension(diameter, diameter));
-        }
-
-        @Override
-        protected void paintComponent(Graphics g) {
-            Graphics2D g2 = (Graphics2D) g.create();
-            smooth(g2);
-            g2.setColor(tint);
-            g2.fillOval(0, 0, diameter - 1, diameter - 1);
-            int s = (int) (diameter * 0.42);
-            paintGlyph(g2, kind, (diameter - s) / 2, (diameter - s) / 2, s, accent);
             g2.dispose();
         }
     }
