@@ -33,3 +33,5 @@ bin/
 
 ### App data (contains student names and IDs) ###
 appointments.csv
+
+settings.properties

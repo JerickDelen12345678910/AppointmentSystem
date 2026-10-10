@@ -328,6 +328,9 @@ public class AdminDashboard extends JFrame {
             showDashboard();
         });
 
+        FlatButton navLimit = navButton("Daily Limit", GlyphKind.LIMIT, false);
+        navLimit.addActionListener(e -> openLimitDialog());
+
         menu.add(sectionLabel("MENU"));
         menu.add(navDashboard);
         menu.add(Box.createRigidArea(new Dimension(0, 24)));
@@ -337,6 +340,8 @@ public class AdminDashboard extends JFrame {
         menu.add(navToday);
         menu.add(Box.createRigidArea(new Dimension(0, 4)));
         menu.add(navRefresh);
+        menu.add(Box.createRigidArea(new Dimension(0, 4)));
+        menu.add(navLimit);
         menu.add(Box.createVerticalGlue());
 
         FlatButton logoutBtn = new FlatButton("Log Out");
@@ -900,6 +905,71 @@ public class AdminDashboard extends JFrame {
         }
     }
 
+    /**
+     * Lets the registrar change how many appointments are accepted per day.
+     * The new limit is saved by CSVManager, then the dashboard reloads so the
+     * "slots booked / slots left" text, the Booked card, and its progress bar all update at once.
+     */
+    private void openLimitDialog() {
+        int current = CSVManager.getMaxPerDay();
+
+        JSpinner spinner = new JSpinner(new SpinnerNumberModel(
+                current, CSVManager.MIN_LIMIT, CSVManager.MAX_LIMIT, 1));
+        spinner.setFont(sans(Font.BOLD, 16));
+        ((JSpinner.DefaultEditor) spinner.getEditor()).getTextField().setColumns(5);
+
+        JLabel info = new JLabel("<html>Maximum appointments accepted per day.<br>"
+                + "Allowed: " + CSVManager.MIN_LIMIT + " to " + CSVManager.MAX_LIMIT
+                + " &middot; Default: " + CSVManager.DEFAULT_MAX_PER_DAY + "<br><br>"
+                + "Existing bookings are never deleted. A day that already has more<br>"
+                + "bookings than the new limit will show as full.</html>");
+        info.setFont(sans(Font.PLAIN, 12));
+
+        JPanel row = new JPanel(new FlowLayout(FlowLayout.LEFT, 0, 0));
+        JLabel rowLabel = new JLabel("Appointments per day:   ");
+        rowLabel.setFont(sans(Font.BOLD, 13));
+        row.add(rowLabel);
+        row.add(spinner);
+
+        JPanel panel = new JPanel(new BorderLayout(0, 12));
+        panel.add(info, BorderLayout.NORTH);
+        panel.add(row, BorderLayout.CENTER);
+
+        Object[] options = {"Save", "Use default (" + CSVManager.DEFAULT_MAX_PER_DAY + ")", "Cancel"};
+        int choice = JOptionPane.showOptionDialog(this, panel, "Daily Appointment Limit",
+                JOptionPane.DEFAULT_OPTION, JOptionPane.PLAIN_MESSAGE, null, options, options[0]);
+
+        int newLimit;
+        if (choice == 0) {
+            try {
+                spinner.commitEdit(); // accept a typed number that wasn't confirmed with Enter
+            } catch (java.text.ParseException ex) {
+                JOptionPane.showMessageDialog(this,
+                        "Please enter a whole number from " + CSVManager.MIN_LIMIT
+                                + " to " + CSVManager.MAX_LIMIT + ".",
+                        "Invalid Limit", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+            newLimit = ((Number) spinner.getValue()).intValue();
+        } else if (choice == 1) {
+            newLimit = CSVManager.DEFAULT_MAX_PER_DAY;
+        } else {
+            return; // Cancel or closed the dialog
+        }
+
+        if (newLimit == current) return;
+
+        if (!CSVManager.setMaxPerDay(newLimit)) {
+            JOptionPane.showMessageDialog(this,
+                    "The new limit could not be saved. Check that the app can write to its folder.",
+                    "Save Failed", JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        loadTableData(); // recomputes slots booked / left and the progress bar
+        showDashboard();
+    }
+
     private void goToGateway() {
         new GatewayScreen().setVisible(true);
         dispose();
@@ -968,7 +1038,7 @@ public class AdminDashboard extends JFrame {
         hoverRow = -1;
 
         int booked = dayList.size();
-        int max = CSVManager.MAX_PER_DAY;
+        int max = CSVManager.getMaxPerDay();
         boolean full = booked >= max;
         int left = Math.max(0, max - booked);
         int pending = booked - printed;
@@ -1350,7 +1420,7 @@ public class AdminDashboard extends JFrame {
     // ---- Vector icons (24 x 24 design grid, scaled to any size)
     private enum GlyphKind {
         DASHBOARD, CALENDAR, CLOCK, REFRESH, LOGOUT, CHEVRON_LEFT, CHEVRON_RIGHT,
-        SEARCH, DOCUMENT, PRINTER
+        SEARCH, DOCUMENT, PRINTER, LIMIT
     }
 
     private static void paintGlyph(Graphics2D g, GlyphKind kind, int x, int y, int size, Color color) {
@@ -1442,6 +1512,16 @@ public class AdminDashboard extends JFrame {
                 g2.draw(new RoundRectangle2D.Double(3.5, 8.5, 17, 8, 2.5, 2.5));
                 g2.draw(new RoundRectangle2D.Double(7, 13.5, 10, 7, 1, 1));
                 g2.fill(new Ellipse2D.Double(16, 10.4, 1.6, 1.6));
+                break;
+            case LIMIT:
+                // three slider tracks, each with a round knob
+                double[] knobX = {15.5, 8.5, 13.5};
+                double[] trackY = {6, 12, 18};
+                for (int i = 0; i < 3; i++) {
+                    g2.draw(new Line2D.Double(3.5, trackY[i], knobX[i] - 2.8, trackY[i]));
+                    g2.draw(new Line2D.Double(knobX[i] + 2.8, trackY[i], 20.5, trackY[i]));
+                    g2.draw(new Ellipse2D.Double(knobX[i] - 2.3, trackY[i] - 2.3, 4.6, 4.6));
+                }
                 break;
             default:
                 break;

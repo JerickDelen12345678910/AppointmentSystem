@@ -97,6 +97,21 @@ public class StudentForm extends JFrame {
 
         refreshCart();
         updateDateLabel();
+
+        // Keep the slot count live: every few seconds, pick up a changed daily limit
+        // (or new bookings) without the student having to reopen the form.
+        slotRefreshTimer = new javax.swing.Timer(5000, e -> {
+            if (isShowing()) updateDateLabel();
+        });
+        slotRefreshTimer.start();
+    }
+
+    private javax.swing.Timer slotRefreshTimer;
+
+    @Override
+    public void dispose() {
+        if (slotRefreshTimer != null) slotRefreshTimer.stop();
+        super.dispose();
     }
 
     private void configureLookAndFeel() {
@@ -506,9 +521,10 @@ public class StudentForm extends JFrame {
     // ---------------------------------------------------------------- Date Selection
     private static LocalDate firstAvailableDate() {
         Map<LocalDate, Integer> counts = CSVManager.countByDate();
+        int max = CSVManager.getMaxPerDay();
         LocalDate day = LocalDate.now();
         for (int i = 0; i < 365; i++, day = day.plusDays(1)) {
-            if (counts.getOrDefault(day, 0) < CSVManager.MAX_PER_DAY) return day;
+            if (counts.getOrDefault(day, 0) < max) return day;
         }
         return null;
     }
@@ -530,9 +546,16 @@ public class StudentForm extends JFrame {
         }
         dateBtn.setText(appointmentDate.format(DATE_LONG));
 
-        int left = CSVManager.MAX_PER_DAY - CSVManager.countForDate(appointmentDate);
-        dateInfo.setText(left + " of " + CSVManager.MAX_PER_DAY + " slots available on this day");
-        dateInfo.setForeground(left <= 10 ? COLOR_PRIMARY : COLOR_OK);
+        int max = CSVManager.getMaxPerDay();
+        int left = Math.max(0, max - CSVManager.countForDate(appointmentDate));
+        if (left == 0) {
+            dateInfo.setText("No slots left on this day (limit: " + max + ")");
+            dateInfo.setForeground(COLOR_DANGER);
+        } else {
+            dateInfo.setText(left + " of " + max + " slots available on this day");
+            // turns orange when 20% or less is left (that is 10 slots at the default limit of 50)
+            dateInfo.setForeground(left <= Math.max(1, max / 5) ? COLOR_PRIMARY : COLOR_OK);
+        }
     }
 
     // ------------------------------------------------------------ Bottom Bar
@@ -624,7 +647,7 @@ public class StudentForm extends JFrame {
 
         if (!CSVManager.saveIfAvailable(app)) {
             JOptionPane.showMessageDialog(this,
-                    appointmentDate.format(DATE_LONG) + " is fully booked (" + CSVManager.MAX_PER_DAY + " appointments limit reached).\nPlease pick another date.",
+                    appointmentDate.format(DATE_LONG) + " is fully booked (" + CSVManager.getMaxPerDay() + " appointments limit reached).\nPlease pick another date.",
                     "Date Fully Booked", JOptionPane.WARNING_MESSAGE);
             appointmentDate = null;
             updateDateLabel();

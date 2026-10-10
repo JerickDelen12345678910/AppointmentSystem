@@ -10,18 +10,104 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 
 /**
  * Saves/loads appointments in appointments.csv.
  * Row format (every field quoted):
  * date,time,id,name,courseAndYear,purpose,documents,status,dateSubmitted
  * "date" is the appointment day. Older 8-column rows (no dateSubmitted) still load fine.
+ *
+ * The daily appointment limit is configurable. It defaults to 50 and is stored in
+ * settings.properties, so the registrar's choice survives restarts. getMaxPerDay() checks
+ * that file every time it is called and picks up changes automatically, even when another
+ * copy of the app (for example the registrar's PC) is the one that changed it.
  */
 public class CSVManager {
-    /** The most appointments the registrar accepts for one day. */
-    public static final int MAX_PER_DAY = 50;
+    /** Limit used when settings.properties is missing or invalid. */
+    public static final int DEFAULT_MAX_PER_DAY = 50;
+
+    /** Smallest and largest limit the registrar is allowed to set. */
+    public static final int MIN_LIMIT = 1;
+    public static final int MAX_LIMIT = 500;
+
+    /**
+     * The most appointments the registrar accepts for one day (starts at the default, 50).
+     * Read it with getMaxPerDay() (that call also refreshes it from settings.properties);
+     * change it ONLY with setMaxPerDay() so the new value is saved.
+     * The field keeps its old name so existing code that reads CSVManager.MAX_PER_DAY still compiles.
+     */
+    public static volatile int MAX_PER_DAY = DEFAULT_MAX_PER_DAY;
 
     private static final String FILE_PATH = "appointments.csv";
+    private static final String SETTINGS_PATH = "settings.properties";
+    private static final String KEY_MAX_PER_DAY = "maxPerDay";
+
+    /** Last-modified time of settings.properties when we last read it (0 = file missing). */
+    private static long settingsStamp = -1;
+
+    static {
+        refreshSettings();
+    }
+
+    // ---------- settings ----------
+
+    /** The current daily appointment limit, always up to date with settings.properties. */
+    public static int getMaxPerDay() {
+        refreshSettings();
+        return MAX_PER_DAY;
+    }
+
+    /**
+     * Changes the daily limit and saves it to settings.properties.
+     * Existing bookings are never deleted: a day that already has more bookings than the
+     * new limit simply counts as full and accepts no more.
+     * @return false if the number is outside MIN_LIMIT..MAX_LIMIT or could not be saved
+     *         (the old limit stays in effect)
+     */
+    public static synchronized boolean setMaxPerDay(int limit) {
+        if (limit < MIN_LIMIT || limit > MAX_LIMIT) return false;
+
+        Properties props = new Properties();
+        props.setProperty(KEY_MAX_PER_DAY, String.valueOf(limit));
+        try (OutputStream out = new FileOutputStream(SETTINGS_PATH)) {
+            props.store(out, "Registrar settings");
+        } catch (IOException e) {
+            System.out.println("Error saving settings: " + e.getMessage());
+            return false;
+        }
+        MAX_PER_DAY = limit;
+        File saved = new File(SETTINGS_PATH);
+        settingsStamp = saved.exists() ? saved.lastModified() : 0L;
+        return true;
+    }
+
+    /**
+     * Re-reads settings.properties, but only when the file changed (or appeared or disappeared)
+     * since the last check, so calling this often is cheap. A missing, unreadable, or
+     * out-of-range file means the default limit is used.
+     */
+    private static synchronized void refreshSettings() {
+        File file = new File(SETTINGS_PATH);
+        long stamp = file.exists() ? file.lastModified() : 0L;
+        if (stamp == settingsStamp) return;
+        settingsStamp = stamp;
+
+        int limit = DEFAULT_MAX_PER_DAY;
+        if (stamp != 0L) {
+            Properties props = new Properties();
+            try (InputStream in = new FileInputStream(file)) {
+                props.load(in);
+                int value = Integer.parseInt(props.getProperty(KEY_MAX_PER_DAY, "").trim());
+                if (value >= MIN_LIMIT && value <= MAX_LIMIT) limit = value;
+            } catch (IOException | NumberFormatException e) {
+                System.out.println("Could not read settings, using default limit: " + e.getMessage());
+            }
+        }
+        MAX_PER_DAY = limit;
+    }
+
+    // ---------- appointments ----------
 
     public static synchronized void saveAppointment(Appointment app) {
         try (PrintWriter out = new PrintWriter(new BufferedWriter(new FileWriter(FILE_PATH, true)))) {
@@ -37,7 +123,7 @@ public class CSVManager {
      * @return false when the day is already full (nothing is saved)
      */
     public static synchronized boolean saveIfAvailable(Appointment app) {
-        if (countForDate(app.getDate()) >= MAX_PER_DAY) return false;
+        if (countForDate(app.getDate()) >= getMaxPerDay()) return false;
         saveAppointment(app);
         return true;
     }
