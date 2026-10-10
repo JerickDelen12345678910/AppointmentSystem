@@ -502,9 +502,6 @@ This section lists things that are true of the current code. None of them stop t
 
 **Security and privacy**
 - 🔐 **Hard-coded registrar credentials** (`admin` / `admin123`) in plain text. Move them to a hashed, external store before real use.
-- 🔐 **`appointments.csv` is not in `.gitignore`.** It holds student names and IDs, so committing it would publish personal data. Add `appointments.csv` to `.gitignore`.
-- 🧹 The bundled `appointments.csv` contains **test data** (e.g. names like `asd`). Delete it before going live.
-
 **Data integrity**
 - 🧵 `synchronized` only protects *one running copy* of the app. If a student kiosk and the registrar PC run **separate copies against the same shared file**, they can overwrite each other (especially `markAsPrinted`, which rewrites the whole file). A real database (SQLite, MySQL) would solve this.
 - 🔑 `markAsPrinted` identifies a row by **date + time submitted + student ID**. Two pending requests from the same ID in the same minute would be ambiguous (the first match wins).
