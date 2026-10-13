@@ -44,6 +44,8 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import javax.print.PrintService;
+import javax.print.PrintServiceLookup;
 
 /**
  * Registrar Dashboard for City College of Calapan.
@@ -54,8 +56,6 @@ import java.util.Set;
  * exactly as it was, since it mirrors the printed form.
  */
 public class AdminDashboard extends JFrame {
-
-    private static final boolean SEND_TO_PRINTER = false;
 
     private static final DateTimeFormatter DATE_LABEL =
             DateTimeFormatter.ofPattern("MMMM d, yyyy", Locale.ENGLISH);
@@ -87,11 +87,7 @@ public class AdminDashboard extends JFrame {
     private static final Color ROW_LINE          = new Color(243, 238, 229);
     private static final Color ROW_HOVER         = new Color(255, 250, 245);
     private static final Color ROW_SELECT        = new Color(255, 238, 224);
-    private static final Color AMBER             = new Color(196, 124, 4);
-    private static final Color AMBER_TINT        = new Color(255, 241, 208);
     private static final Color GREEN_TINT        = new Color(223, 240, 228);
-    private static final Color BROWN             = new Color(124, 84, 52);
-    private static final Color BROWN_TINT        = new Color(242, 232, 222);
     private static final Color TRACK             = new Color(241, 234, 223);
 
     private static final String SANS_FAMILY = pickSans();
@@ -981,9 +977,7 @@ public class AdminDashboard extends JFrame {
     }
 
     private static int countDocuments(Appointment a) {
-        int n = 0;
-        for (DocumentRequest ignored : a.getDocuments()) n++;
-        return n;
+        return a.getDocuments().size();
     }
 
     private boolean matchesFilters(Appointment a) {
@@ -1414,8 +1408,8 @@ public class AdminDashboard extends JFrame {
 
     // ---- Vector icons (24 x 24 design grid, scaled to any size)
     private enum GlyphKind {
-        DASHBOARD, CALENDAR, CLOCK, REFRESH, LOGOUT, CHEVRON_LEFT, CHEVRON_RIGHT,
-        SEARCH, DOCUMENT, PRINTER, LIMIT
+        DASHBOARD, CALENDAR, CLOCK, REFRESH, LOGOUT, CHEVRON_LEFT,
+        SEARCH, LIMIT
     }
 
     private static void paintGlyph(Graphics2D g, GlyphKind kind, int x, int y, int size, Color color) {
@@ -1476,37 +1470,9 @@ public class AdminDashboard extends JFrame {
                 p.lineTo(15, 19);
                 g2.draw(p);
                 break;
-            case CHEVRON_RIGHT:
-                p.moveTo(9, 5);
-                p.lineTo(16, 12);
-                p.lineTo(9, 19);
-                g2.draw(p);
-                break;
             case SEARCH:
                 g2.draw(new Ellipse2D.Double(3.5, 3.5, 12.5, 12.5));
                 g2.draw(new Line2D.Double(14.8, 14.8, 20.5, 20.5));
-                break;
-            case DOCUMENT:
-                p.moveTo(6.5, 3);
-                p.lineTo(14, 3);
-                p.lineTo(19, 8);
-                p.lineTo(19, 20.5);
-                p.lineTo(6.5, 20.5);
-                p.closePath();
-                g2.draw(p);
-                Path2D.Double fold = new Path2D.Double();
-                fold.moveTo(14, 3);
-                fold.lineTo(14, 8);
-                fold.lineTo(19, 8);
-                g2.draw(fold);
-                g2.draw(new Line2D.Double(9.5, 13, 15.5, 13));
-                g2.draw(new Line2D.Double(9.5, 16.5, 15.5, 16.5));
-                break;
-            case PRINTER:
-                g2.draw(new RoundRectangle2D.Double(7, 3.5, 10, 5, 1, 1));
-                g2.draw(new RoundRectangle2D.Double(3.5, 8.5, 17, 8, 2.5, 2.5));
-                g2.draw(new RoundRectangle2D.Double(7, 13.5, 10, 7, 1, 1));
-                g2.fill(new Ellipse2D.Double(16, 10.4, 1.6, 1.6));
                 break;
             case LIMIT:
                 // three slider tracks, each with a round knob
@@ -1858,18 +1824,26 @@ public class AdminDashboard extends JFrame {
     private void printSelected() {
         if (selected == null) return;
 
+        // Automatic/silent printing: look for whatever printer Windows (or the OS) currently
+        // has set as default. This is what notices a printer the moment it's plugged in and
+        // installed -- there's no dialog, so nothing asks the registrar to pick a printer.
+        PrintService printer = PrintServiceLookup.lookupDefaultPrintService();
+        if (printer == null) {
+            JOptionPane.showMessageDialog(this,
+                    "No printer was found. Plug in / turn on a printer and make sure it's installed, then try again.",
+                    "No Printer Found", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         PrinterJob job = PrinterJob.getPrinterJob();
         job.setPrintable(new FormPrintable(selected));
-
-        if (SEND_TO_PRINTER) {
-            if (!job.printDialog()) return;
-            try {
-                job.print();
-            } catch (PrinterException ex) {
-                JOptionPane.showMessageDialog(this, "Printing failed: " + ex.getMessage(),
-                        "Print Error", JOptionPane.ERROR_MESSAGE);
-                return;
-            }
+        try {
+            job.setPrintService(printer);
+            job.print();
+        } catch (PrinterException ex) {
+            JOptionPane.showMessageDialog(this, "Printing failed: " + ex.getMessage(),
+                    "Print Error", JOptionPane.ERROR_MESSAGE);
+            return;
         }
 
         CSVManager.markAsPrinted(selected);

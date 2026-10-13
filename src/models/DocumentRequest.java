@@ -11,10 +11,6 @@ public class DocumentRequest {
         this.sem = sem;
     }
 
-    public String getDoc() { return doc; }
-    public String getYear() { return year; }
-    public String getSem() { return sem; }
-
     /** Full document name, e.g. COE -> Certificate of Enrollment. */
     public String getFullName() {
         switch (doc) {

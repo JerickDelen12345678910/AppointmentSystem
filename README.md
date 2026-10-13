@@ -68,7 +68,7 @@ There is no database and no server. Everything is stored in one plain-text file,
 - **Search and filter.** Free-text search across ID, name, purpose, course, and document names, plus **All / Pending / Printed** chips that show counts.
 - **Compact documents column.** Shows the first document plus a `+N` badge, with a tooltip listing the rest.
 - **Request detail view.** Click a row to see the full request as a formatted form slip.
-- **One-click print** that renders a quarter-page version of the form and flips the status to `PRINTED`.
+- **One-click print** that renders a quarter-page version of the form and sends it straight to the computer's default printer — no print dialog, no manual switch to flip. If a printer is plugged in and set as the OS default, it just prints; if none is found, the registrar gets a clear warning instead of a silent failure.
 - **Year calendar (2000-2100)** for jumping to any date, with the same availability colors.
 - **Shortcuts.** *Today's Schedule* and *Refresh Data* buttons in the sidebar.
 
@@ -289,12 +289,13 @@ The dialog loads all counts once with `CSVManager.countByDate()` when it opens. 
 **Request details.** Selecting a row shows a form slip with the school letterhead, student ID, appointment date, name, course and year, date and time submitted, purpose, a numbered list of requested documents (full names such as *Certificate of Enrollment / Bonafide Student (2nd Year, 2nd Sem)*), and signature lines for the student and the registrar.
 
 **Printing (`printSelected` and `FormPrintable`).**
-1. Builds a `PrinterJob` with a custom `Printable` that draws the form with Java2D at **quarter-page size**: half the printable width, anchored to the top-left, so four slips can be cut from one sheet. Long names and purposes are word-wrapped by real pixel width, and long document names are truncated with an ellipsis.
-2. If `SEND_TO_PRINTER` is `true`, it opens the system print dialog and prints.
-3. Calls `CSVManager.markAsPrinted(...)`, which changes `PENDING` to `PRINTED`.
-4. Reloads the table and returns to the list.
+1. Looks up the operating system's **default printer** with `PrintServiceLookup.lookupDefaultPrintService()` — whatever Windows (or the OS) currently has set as default, including one just plugged in and installed.
+2. **No printer found** → shows a "No Printer Found" warning and stops there. The request stays `PENDING` so the registrar can plug one in and try again.
+3. **Printer found** → builds a `PrinterJob` with a custom `Printable` that draws the form with Java2D at **quarter-page size**: half the printable width, anchored to the top-left, so four slips can be cut from one sheet. Long names and purposes are word-wrapped by real pixel width, and long document names are truncated with an ellipsis. The job is sent straight to that printer with `job.print()` — **no print dialog**, nothing for the registrar to confirm.
+4. **Print failure** (out of paper, printer goes offline mid-job, etc.) → shows a "Print Error" message with the underlying cause. The request stays `PENDING`.
+5. **Print succeeds** → calls `CSVManager.markAsPrinted(...)`, which changes `PENDING` to `PRINTED`, shows a success message, reloads the table, and returns to the list.
 
-> ⚠️ **`SEND_TO_PRINTER` is `false` by default.** In this mode the app skips the print dialog, so **no paper comes out**, but the request is still marked `PRINTED`. This is useful for demos and testing. Set it to `true` in `AdminDashboard.java` for real printing.
+> Printing is fully automatic. Plug in and install a printer, set it as the system default, and the Print button sends the slip straight to it — there is no demo/simulation mode and no toggle to turn off. (If you've seen older docs mention a `SEND_TO_PRINTER` switch: that flag has been removed, see [§10](#10-configuration-cheat-sheet).)
 
 Once a request is `PRINTED`, the button becomes a disabled red **"Already Printed"** and the status can't be changed back from the UI.
 
@@ -485,7 +486,7 @@ java -cp out Main
 |---|---|---|
 | Daily appointment limit | `CSVManager.java` | `MAX_PER_DAY` (calendar thresholds recompute automatically; "almost full" is 80% of this) |
 | Registrar username / password | `GatewayScreen.java` | `ADMIN_USER`, `ADMIN_PASS` |
-| Real printing vs. demo mode | `AdminDashboard.java` | `SEND_TO_PRINTER` (`false` = no paper, still marks as printed) |
+| Which printer is used | Operating system | None in code — printing always targets whatever the OS has set as the **default printer** (`PrintServiceLookup.lookupDefaultPrintService()`). Change the default printer in your OS settings to redirect it. |
 | Available documents | `StudentForm.java` | `DOCUMENTS` array |
 | Courses offered | `StudentForm.java` | `courseBox` (`"BSIS", "BSIT", "BSEd"`) |
 | Year levels | `StudentForm.java` | `YEARS` array |
@@ -501,20 +502,20 @@ java -cp out Main
 This section lists things that are true of the current code. None of them stop the app from working, but they are worth knowing before a real deployment.
 
 **Security and privacy**
-- 🔐 **Hard-coded registrar credentials** (`admin` / `admin123`) in plain text. Move them to a hashed, external store before real use.
-**Data integrity**
-- 🧵 `synchronized` only protects *one running copy* of the app. If a student kiosk and the registrar PC run **separate copies against the same shared file**, they can overwrite each other (especially `markAsPrinted`, which rewrites the whole file). A real database (SQLite, MySQL) would solve this.
-- 🔑 `markAsPrinted` identifies a row by **date + time submitted + student ID**. Two pending requests from the same ID in the same minute would be ambiguous (the first match wins).
-- 🔣 Document names are stored using `~` and `|` as separators. A document name containing either character would break parsing (none of the current 17 do).
-- 📄 The CSV has no header row and no schema version; the loader relies on column count (8 vs 9) to detect old rows.
+ **Hard-coded registrar credentials** (`admin` / `admin123`) in plain text. Move them to a hashed, external store before real use.
+  **Data integrity**
+-  `synchronized` only protects *one running copy* of the app. If a student kiosk and the registrar PC run **separate copies against the same shared file**, they can overwrite each other (especially `markAsPrinted`, which rewrites the whole file). A real database (SQLite, MySQL) would solve this.
+-  `markAsPrinted` identifies a row by **date + time submitted + student ID**. Two pending requests from the same ID in the same minute would be ambiguous (the first match wins).
+-  Document names are stored using `~` and `|` as separators. A document name containing either character would break parsing (none of the current 17 do).
+-  The CSV has no header row and no schema version; the loader relies on column count (8 vs 9) to detect old rows.
 
 **Functionality gaps**
-- 🖨️ `SEND_TO_PRINTER = false` by default, so printing is a simulation until changed.
-- 🔄 The dashboard has **no auto-refresh**. New bookings appear after **Refresh Data**.
-- 🚫 No way to **cancel, reschedule, or edit** a booking, and no way to revert a printed request.
-- 📅 The cap is **per day**, not per time slot, and there is no blocking of weekends or holidays.
-- 🪪 Students are not verified: anyone can enter any ID.
-- 🧾 `DocumentRequest.getFullName()` only expands the old codes `COG`/`COR`/`COE`; newer rows already store full names.
+-  Always prints to the OS **default printer** — there's no in-app picker for a different installed printer, and no print preview before the job is sent.
+-  The dashboard has **no auto-refresh**. New bookings appear after **Refresh Data**.
+-  No way to **cancel, reschedule, or edit** a booking, and no way to revert a printed request.
+-  The cap is **per day**, not per time slot, and there is no blocking of weekends or holidays.
+-  Students are not verified: anyone can enter any ID.
+-  `DocumentRequest.getFullName()` only expands the old codes `COG`/`COR`/`COE`; newer rows already store full names.
 
 **Ideas for the future**
 - Email or SMS confirmation to the student.
