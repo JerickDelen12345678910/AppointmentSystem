@@ -45,7 +45,7 @@ Students at City College of Calapan who need school records (a Certificate of Re
 | **Student Portal** | Any student | Fills out the request form, picks the documents they need, and books a visit date. |
 | **Registrar Dashboard** | Registrar staff (login required) | Sees who is coming on any given day, reviews each request, and prints the request slip. |
 
-**Key idea:** the registrar can only serve so many people per day, so the system enforces a **hard cap of 50 appointments per day**. Full days are shown in red on a year calendar and cannot be booked.
+**Key idea:** the registrar can serve people per day as many as they want. Full days are shown in red on a year calendar and cannot be booked.
 
 There is no database and no server. Everything is stored in one plain-text file, `appointments.csv`, so the app runs anywhere Java runs.
 
